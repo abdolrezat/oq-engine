@@ -21,6 +21,7 @@ import collections
 
 import numpy
 
+from openquake.baselib import hdf5
 from openquake.baselib.general import AccumDict
 from openquake.risklib import scientific
 from openquake.commonlib.export import export
@@ -847,3 +848,18 @@ def export_realizations(ekey, dstore):
     path = dstore.export_path('realizations.csv')
     writers.write_csv(path, data, fmt='%s')
     return [path]
+
+
+# this is used by classical_risk, event_based_risk and scenario_risk
+@export.add(('avg_losses-rlzs', 'hdf5'), ('losses_by_asset', 'hdf5'))
+def export_losses_by_asset_hdf5(ekey, dstore):
+    """
+    :param ekey: export key, i.e. a pair (datastore key, fmt)
+    :param dstore: datastore object
+    """
+    assets = get_assets(dstore)
+    fname = dstore.export_path('losses_by_asset.hdf5')
+    with hdf5.File(fname, 'w') as f:
+        losses = compose_arrays(assets, dstore[ekey[0]].value)
+        f['losses_by_asset'] = losses
+    return [fname]
