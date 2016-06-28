@@ -1,4 +1,19 @@
   [Michele Simionato]
+  * Removed the array cost_types from the datastore
+  * Taxonomies with chars not in the range a-z0-9 were incorrectly rejected
+  * Improved the XML parsing utilities in speed, memory, portability and
+    easy of use
+  * Forbidden the reuse of exposure because is was fragile and error prone
+  * Fixed a bug with the `realizations` array, which in hazard calculations
+    was empty in the datastore
+
+python-oq-engine (2.0.0-0~precise01) precise; urgency=low
+
+  [Michele Simionato]
+  * Quoted the taxonomies in the CSV exports
+  * Fixed a bug in classical_damage and added a master test for it
+  * Fixed the escaping of the taxonomies in the datastore
+  * Fixed the names of the exported risk files
   * Fixed a segfault in the WebUI when exporting files with h5py >= 2.4
   * Added a command `oq dbserver` to start/stop the database server
   * The engine exports the hazard curves one file per IMT
@@ -152,6 +167,8 @@
     tectonic region types
   * Optimized the aggregation by asset in the event based risk calculator
   * Reporting the source_id when the filtering fails
+
+ -- Matteo Nastasi (GEM Foundation) <nastasi@openquake.org>  Tue, 21 Jun 2016 14:17:03 +0200
 
 python-oq-engine (1.9.1-0~precise01) precise; urgency=low
 

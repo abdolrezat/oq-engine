@@ -247,8 +247,7 @@ lossCategory="contents">
         cmodel = nrml.parse(fname)
         self.assertEqual(
             repr(cmodel),
-            "<ConsequenceModel structural "
-            "['ds1', 'ds2', 'ds3', 'ds4'] tax1>")
+            "<ConsequenceModel structural ds1, ds2, ds3, ds4 tax1>")
 
         # test pickleability
         pickle.loads(pickle.dumps(cmodel))

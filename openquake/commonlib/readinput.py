@@ -34,7 +34,7 @@ from openquake.hazardlib.calc.hazard_curve import zero_curves
 from openquake.risklib import riskmodels, riskinput, valid
 from openquake.commonlib import datastore
 from openquake.commonlib.oqvalidation import OqParam
-from openquake.commonlib.node import read_nodes, LiteralNode, context
+from openquake.commonlib.node import Node, context
 from openquake.commonlib import nrml, logictree, InvalidFile
 from openquake.commonlib.riskmodels import get_risk_models
 from openquake.baselib.general import groupby, AccumDict, writetmp
@@ -131,7 +131,7 @@ def get_params(job_inis):
     if smlt:
         params['inputs']['source'] = [
             os.path.join(base_path, src_path)
-            for src_path in source.collect_source_model_paths(smlt)]
+            for src_path in sorted(source.collect_source_model_paths(smlt))]
 
     return params
 
@@ -231,9 +231,7 @@ def get_site_model(oqparam):
     :param oqparam:
         an :class:`openquake.commonlib.oqvalidation.OqParam` instance
     """
-    for node in read_nodes(oqparam.inputs['site_model'],
-                           lambda el: el.tag.endswith('site'),
-                           source.nodefactory['siteModel']):
+    for node in nrml.read(oqparam.inputs['site_model']).siteModel:
         yield valid.site_param(**node.attrib)
 
 
@@ -330,8 +328,7 @@ def get_rupture(oqparam):
         an :class:`openquake.commonlib.oqvalidation.OqParam` instance
     """
     rup_model = oqparam.inputs['rupture_model']
-    rup_node, = read_nodes(rup_model, lambda el: 'Rupture' in el.tag,
-                           source.nodefactory['sourceModel'])
+    [rup_node] = nrml.read(rup_model)
     conv = sourceconverter.RuptureConverter(
         oqparam.rupture_mesh_spacing, oqparam.complex_fault_mesh_spacing)
     return conv.convert_node(rup_node)
@@ -403,7 +400,7 @@ def get_source_models(oqparam, gsim_lt, source_model_lt, in_memory=True):
         if in_memory:
             apply_unc = source_model_lt.make_apply_uncertainties(smpath)
             try:
-                trt_models = parser.parse_trt_models(fname, apply_unc)
+                src_groups = parser.parse_src_groups(fname, apply_unc)
             except ValueError as e:
                 if str(e) in ('Surface does not conform with Aki & '
                               'Richards convention',
@@ -416,19 +413,18 @@ def get_source_models(oqparam, gsim_lt, source_model_lt, in_memory=True):
                 else:
                     raise
         else:  # just collect the TRT models
-            smodel = next(read_nodes(fname, lambda el: 'sourceModel' in el.tag,
-                                     source.nodefactory['sourceModel']))
-            trt_models = source.TrtModel.collect(smodel)
-        trts = [mod.trt for mod in trt_models]
+            smodel = nrml.read(fname).sourceModel
+            src_groups = source.SourceGroup.collect(smodel)
+        trts = [mod.trt for mod in src_groups]
         source_model_lt.tectonic_region_types.update(trts)
 
         gsim_file = oqparam.inputs.get('gsim_logic_tree')
         if gsim_file:  # check TRTs
-            for trt_model in trt_models:
-                if trt_model.trt not in gsim_lt.values:
+            for src_group in src_groups:
+                if src_group.trt not in gsim_lt.values:
                     raise ValueError(
                         "Found in %r a tectonic region type %r inconsistent "
-                        "with the ones in %r" % (sm, trt_model.trt, gsim_file))
+                        "with the ones in %r" % (sm, src_group.trt, gsim_file))
         else:
             gsim_lt = logictree.GsimLogicTree.from_(oqparam.gsim)
         weight = rlz.weight / num_samples
@@ -437,7 +433,7 @@ def get_source_models(oqparam, gsim_lt, source_model_lt, in_memory=True):
         logging.info('Processed source model %d/%d with %d gsim path(s)',
                      i + 1, num_source_models, num_gsim_paths)
         yield source.SourceModel(
-            sm, weight, smpath, trt_models, num_gsim_paths, i, num_samples)
+            sm, weight, smpath, src_groups, num_gsim_paths, i, num_samples)
 
     # log if some source file is being used more than once
     for fname, hits in parser.fname_hits.items():
@@ -467,17 +463,17 @@ def get_composite_source_model(oqparam, in_memory=True):
     gsim_lt = get_gsim_lt(oqparam)
     for source_model in get_source_models(
             oqparam, gsim_lt, source_model_lt, in_memory=in_memory):
-        for trt_model in source_model.trt_models:
-            trt_model.sources = sorted(trt_model, key=getid)
-            trt_model.id = trt_id
-            for src in trt_model:
+        for src_group in source_model.src_groups:
+            src_group.sources = sorted(src_group, key=getid)
+            src_group.id = trt_id
+            for src in src_group:
                 # there are two cases depending on the flag in_memory:
-                # 1) src is a hazardlib source and has a trt_model_id
+                # 1) src is a hazardlib source and has a src_group_id
                 #    attribute; in that case the source has to be numbered
                 # 2) src is a Node object, then nothing must be done
-                if hasattr(src, 'trt_model_id'):
-                    # .trt_model_id is missing for source nodes
-                    src.trt_model_id = trt_id
+                if hasattr(src, 'src_group_id'):
+                    # .src_group_id is missing for source nodes
+                    src.src_group_id = trt_id
                     src.id = idx
                     idx += 1
             trt_id += 1
@@ -507,8 +503,8 @@ def get_job_info(oqparam, source_models, sitecol):
     # given by the parameter `point_source_weight` is applied
     input_weight = sum((src.weight or 0) * src_model.samples
                        for src_model in source_models
-                       for trt_model in src_model.trt_models
-                       for src in trt_model)
+                       for src_group in src_model.src_groups
+                       for src in src_group)
     imtls = oqparam.imtls
     n_sites = len(sitecol) if sitecol else 0
 
@@ -623,38 +619,39 @@ class DuplicatedID(Exception):
     """
 
 
-def get_exposure_lazy(fname, ok_cost_types):
+def _get_exposure(fname, ok_cost_types, stop=None):
     """
     :param fname:
         path of the XML file containing the exposure
     :param ok_cost_types:
         a set of cost types (as strings)
+    :param stop:
+        node at which to stop parsing (or None)
     :returns:
         a pair (Exposure instance, list of asset nodes)
     """
-    [exposure] = nrml.read_lazy(fname, ['assets'])
+    [exposure] = nrml.read(fname, stop=stop)
     description = exposure.description
     try:
         conversions = exposure.conversions
     except NameError:
-        conversions = LiteralNode('conversions',
-                                  nodes=[LiteralNode('costTypes', [])])
+        conversions = Node('conversions', nodes=[Node('costTypes', [])])
     try:
         inslimit = conversions.insuranceLimit
     except NameError:
-        inslimit = LiteralNode('insuranceLimit', text=True)
+        inslimit = Node('insuranceLimit', text=True)
     try:
         deductible = conversions.deductible
     except NameError:
-        deductible = LiteralNode('deductible', text=True)
+        deductible = Node('deductible', text=True)
     try:
         area = conversions.area
     except NameError:
         # NB: the area type cannot be an empty string because when sending
-        # around the CostCalculator object one runs into this numpy bug on
-        # pickling dictionaries with empty strings:
+        # around the CostCalculator object we would run into this numpy bug
+        # about pickling dictionaries with empty strings:
         # https://github.com/numpy/numpy/pull/5475
-        area = LiteralNode('area', dict(type='?'))
+        area = Node('area', dict(type='?'))
 
     # read the cost types and make some check
     cost_types = []
@@ -662,7 +659,7 @@ def get_exposure_lazy(fname, ok_cost_types):
         if ct['name'] in ok_cost_types:
             with context(fname, ct):
                 cost_types.append(
-                    (ct['name'], valid_cost_type(ct['type']), ct['unit']))
+                    (ct['name'], valid.cost_type_type(ct['type']), ct['unit']))
     if 'occupants' in ok_cost_types:
         cost_types.append(('occupants', 'per_area', 'people'))
     cost_types.sort(key=operator.itemgetter(0))
@@ -670,17 +667,27 @@ def get_exposure_lazy(fname, ok_cost_types):
     exp = Exposure(
         exposure['id'], exposure['category'],
         ~description, numpy.array(cost_types, cost_type_dt), time_events,
-        ~inslimit, ~deductible, area.attrib, [], set(), [])
+        inslimit.attrib.get('isAbsolute', True),
+        deductible.attrib.get('isAbsolute', True),
+        area.attrib, [], set(), [])
     cc = riskmodels.CostCalculator(
-        {}, {}, exp.deductible_is_absolute, exp.insurance_limit_is_absolute)
+        {}, {}, {},
+        exp.deductible_is_absolute, exp.insurance_limit_is_absolute)
     for ct in exp.cost_types:
         name = ct['name']  # structural, nonstructural, ...
         cc.cost_types[name] = ct['type']  # aggregated, per_asset, per_area
         cc.area_types[name] = exp.area['type']
+        cc.units[name] = ct['unit']
     return exp, exposure.assets, cc
 
 
-valid_cost_type = valid.Choice('aggregated', 'per_area', 'per_asset')
+def get_cost_calculator(oqparam):
+    """
+    Read the first lines of the exposure file and infers the cost calculator
+    """
+    return _get_exposure(oqparam.inputs['exposure'],
+                         set(oqparam.all_cost_types),
+                         stop='assets')[-1]
 
 
 def get_exposure(oqparam):
@@ -702,7 +709,7 @@ def get_exposure(oqparam):
         region = None
     all_cost_types = set(oqparam.all_cost_types)
     fname = oqparam.inputs['exposure']
-    exposure, assets_node, cc = get_exposure_lazy(fname, all_cost_types)
+    exposure, assets_node, cc = _get_exposure(fname, all_cost_types)
     relevant_cost_types = all_cost_types - set(['occupants'])
     asset_refs = set()
     ignore_missing_costs = set(oqparam.ignore_missing_costs)
@@ -741,11 +748,11 @@ def get_exposure(oqparam):
         try:
             costs = asset.costs
         except NameError:
-            costs = LiteralNode('costs', [])
+            costs = Node('costs', [])
         try:
             occupancies = asset.occupancies
         except NameError:
-            occupancies = LiteralNode('occupancies', [])
+            occupancies = Node('occupancies', [])
         for cost in costs:
             with context(fname, cost):
                 cost_type = cost['type']
@@ -1068,10 +1075,10 @@ def get_scenario_from_nrml(oqparam, fname):
 
     for etag, count in counts.items():
         if count < num_imts:
-            raise InvalidFile('Found a missing etag %r in %s' %
+            raise InvalidFile("Found a missing etag '%s' in %s" %
                               (etag, fname))
         elif count > num_imts:
-            raise InvalidFile('Found a duplicated etag %r in %s' %
+            raise InvalidFile("Found a duplicated etag '%s' in %s" %
                               (etag, fname))
     expected_gmvs_per_site = num_imts * len(etags)
     for lonlat, counts in sitecounts.items():
