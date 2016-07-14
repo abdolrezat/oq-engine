@@ -28,6 +28,12 @@ from openquake.server import executor
 from openquake.engine import logs
 
 
+# this is used in test mode
+db = Db(sqlite3.connect, DATABASE['NAME'], isolation_level=None,
+        detect_types=sqlite3.PARSE_DECLTYPES)
+
+
+# in test mode: bypass the DbServer and run the action directly
 def dbcmd(action, *args):
     """
     Direct dispatcher to the database, used in the tests
@@ -35,12 +41,7 @@ def dbcmd(action, *args):
     :param action: database action to perform
     :param args: arguments
     """
-    # bypass the DbServer and run the action directly
-    # open a connection per query, this is fast anyway
-    db = Db(sqlite3.connect, DATABASE['NAME'], isolation_level=None)
-    res = getattr(actions, action)(db, *args)
-    db.conn.close()
-    return res
+    return getattr(actions, action)(db, *args)
 
 
 def parse_args(argv):

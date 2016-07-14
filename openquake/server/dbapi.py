@@ -17,7 +17,7 @@
 # along with OpenQuake. If not, see <http://www.gnu.org/licenses/>.
 
 import re
-import shlex
+import time
 import threading
 import collections
 
@@ -184,6 +184,14 @@ class Db(object):
                                  table, columns, rows[0])
             cursor.executemany(templ, rows)
         return cursor
+
+    def retry(self, m_templ, *m_args, **kw):
+        for i in range(kw.get('attempts', 3)):
+            try:
+                return self(m_templ, *m_args, **kw)
+            except Exception as exc:
+                time.sleep(1)
+        raise exc
 
 
 class RecordSet(collections.Sequence):

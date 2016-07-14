@@ -328,28 +328,29 @@ def get_calcs(db, request_get_dict, user_name, user_acl_on=False, id=None):
                         job_is_running, job_description)
     """
     # helper to get job+calculation data from the oq-engine database
-    filterdict = {}
+    cond = {}
 
     # user_acl_on is true if settings.ACL_ON = True or when the user is a
     # Django super user
     if user_acl_on:
-        filterdict['user_name'] = user_name
+        cond['user_name'] = user_name
 
     if id is not None:
-        filterdict['id'] = id
+        cond['id'] = id
 
     if 'job_type' in request_get_dict:
-        filterdict['job_type'] = request_get_dict.get('job_type')
+        cond['job_type'] = request_get_dict.get('job_type')
 
     if 'is_running' in request_get_dict:
         is_running = request_get_dict.get('is_running')
-        filterdict['is_running'] = valid.boolean(is_running)
+        cond['is_running'] = valid.boolean(is_running)
 
     if 'relevant' in request_get_dict:
         relevant = request_get_dict.get('relevant')
-        filterdict['relevant'] = valid.boolean(relevant)
-    jobs = db('SELECT *, %s FROM job WHERE $A ORDER BY id DESC' % JOB_TYPE,
-              filterdict)
+        cond['relevant'] = valid.boolean(relevant)
+    jobs = db.retry(
+        'SELECT *, %s FROM job WHERE $A ORDER BY id DESC' % JOB_TYPE, cond,
+        attemps=10)
     return [(job.id, job.user_name, job.status, job.job_type,
              job.is_running, job.description) for job in jobs]
 
@@ -371,8 +372,8 @@ def get_log_slice(db, calc_id, start, stop):
     logs = db('SELECT * FROM log WHERE job_id=$s '
               'ORDER BY id LIMIT $t OFFSET $t',
               calc_id, limit, start)
-    return [[log.timestamp[:22], log.level, log.process, log.message]
-            for log in logs]
+    return [[log.timestamp.isoformat()[:22], log.level,
+             log.process, log.message] for log in logs]
 
 
 def get_log_size(db, calc_id):
