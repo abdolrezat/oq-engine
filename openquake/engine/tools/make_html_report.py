@@ -163,13 +163,13 @@ def make_report(isodate='today'):
     # the fetcher returns an header which is stripped with [1:]
     dbcmd.DBSERVER = False
     jobs = dbcmd(
-        'fetch', ALL_JOBS, isodate.isoformat(), isodate1.isoformat())[1:]
+        'fetch', ALL_JOBS, isodate.isoformat(), isodate1.isoformat())
     page = '<h2>%d job(s) finished before midnight of %s</h2>' % (
         len(jobs), isodate)
     for job_id, user, status, ds_calc in jobs:
         tag_ids.append(job_id)
         tag_status.append(status)
-        header, stats = dbcmd('fetch', JOB_STATS, job_id)
+        [stats] = dbcmd('fetch', JOB_STATS, job_id)
         (job_id, user, start_time, stop_time, status, duration) = stats
         try:
             ds = read(job_id, datadir=os.path.dirname(ds_calc))
@@ -183,7 +183,7 @@ def make_report(isodate='today'):
 
         page = report['html_title']
 
-        page += html([header, stats])
+        page += html([stats._fields, stats])
 
         page += report['fragment']
 

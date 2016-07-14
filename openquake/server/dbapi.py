@@ -158,14 +158,11 @@ class Db(object):
                 elif len(rows) > 1:
                     raise TooManyRows(len(rows))
 
-            colnames = [r[0] for r in cursor.description]
-            row = Row(colnames)
+            recset = RecordSet([r[0] for r in cursor.description], rows)
             if kw.get('one'):
-                return row._new(rows[0])
-            elif kw.get('header'):
-                return [row] + [row._new(r) for r in rows]
+                return recset[0]
             else:
-                return [row._new(r) for r in rows]
+                return recset
         else:
             return cursor
 
@@ -178,41 +175,38 @@ class Db(object):
         return cursor
 
 
-# we cannot use a namedtuple here because one would get aPicklingError:
-# Can't pickle <class 'openquake.server.dbapi.Row'>: attribute lookup
-# openquake.server.dbapi.Row failed
-class Row(collections.Sequence):
-    """
-    A pickleable row. Here is an example of usage:
-
-    >>> row = Row('id value'.split())
-    >>> row._new((1, 42))
-    <Row(id=1, value=42)>
-    >>> row._fields
-    ['id', 'value']
-    """
-    def __init__(self, fields):
-        self._fields = self._tup = fields
-        for f in fields:
-            setattr(self, f, f)
-
-    def _new(self, values):
-        if len(values) != len(self._tup):
-            raise ValueError('Got %d fields, expected %d' %
-                             (len(values), len(self._tup)))
-        new = self.__new__(self.__class__)
-        new._fields = self._fields
-        new._tup = values
-        for f, v in zip(self._fields, values):
-            setattr(new, f, v)
-        return new
+class RecordSet(collections.Sequence):
+    def __init__(self, fields, rows):
+        self.fields = fields
+        self.records = [Record(self, row) for row in rows]
 
     def __getitem__(self, i):
-        return self._tup[i]
+        return self.records[i]
 
     def __len__(self):
-        return len(self._tup)
+        return len(self.records)
+
+
+class Record(collections.Sequence):
+    def __init__(self, recordset, values):
+        self._recordset = recordset
+        if len(values) != len(self._fields):
+            raise ValueError('Got %d fields, expected %d' %
+                             (len(values), len(self._fields)))
+        for f, v in zip(self._fields, values):
+            setattr(self, f, v)
+
+    @property
+    def _fields(self):
+        return self._recordset.fields
+
+    def __getitem__(self, i):
+        return getattr(self, self._fields[i])
+
+    def __len__(self):
+        return len(self._fields)
 
     def __repr__(self):
-        items = ['%s=%s' % (f, getattr(self, f)) for f in self._fields]
-        return '<Row(%s)>' % ', '.join(items)
+        items = ['%s=%s' % (f, getattr(self, f))
+                 for f in self._fields]
+        return '<Record(%s)>' % ', '.join(items)
