@@ -48,16 +48,6 @@ def dbcmd(action, *args):
     :param action: database action to perform
     :param args: arguments
     """
-    if not dbcmd.DBSERVER:  # development/testing mode
-        # bypass the DbServer and run the action directly
-        # open a connection per query, this is fast anyway
-        from openquake.server.db import actions
-        from openquake.server.dbapi import Db
-        from openquake.server.settings import DATABASE
-        db = Db(sqlite3.connect, DATABASE['NAME'], isolation_level=None)
-        res = getattr(actions, action)(db, *args)
-        db.conn.close()
-        return res
     try:
         client = Client(config.DBS_ADDRESS, authkey=config.DBS_AUTHKEY)
     except:
@@ -70,8 +60,6 @@ def dbcmd(action, *args):
     if etype:
         raise etype(res)
     return res
-
-dbcmd.DBSERVER = True  # turn this off to debug database actions
 
 
 def touch_log_file(log_file):

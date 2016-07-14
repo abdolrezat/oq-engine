@@ -159,11 +159,7 @@ def make_report(isodate='today'):
     tag_ids = []
     tag_status = []
     tag_contents = []
-
-    # the fetcher returns an header which is stripped with [1:]
-    dbcmd.DBSERVER = False
-    jobs = dbcmd(
-        'fetch', ALL_JOBS, isodate.isoformat(), isodate1.isoformat())
+    jobs = dbcmd('fetch', ALL_JOBS, isodate.isoformat(), isodate1.isoformat())
     page = '<h2>%d job(s) finished before midnight of %s</h2>' % (
         len(jobs), isodate)
     for job_id, user, status, ds_calc in jobs:
@@ -180,13 +176,9 @@ def make_report(isodate='today'):
                 html_title='Could not generate report: %s' % cgi.escape(
                     unicode(exc), quote=True),
                 fragment='')
-
         page = report['html_title']
-
         page += html([stats._fields, stats])
-
         page += report['fragment']
-
         tag_contents.append(page)
 
     page = make_tabs(tag_ids, tag_status, tag_contents) + (

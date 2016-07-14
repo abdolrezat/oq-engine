@@ -21,9 +21,26 @@ import os
 import sys
 import sqlite3
 from django.core.management import execute_from_command_line
-from openquake.server.db.upgrade_manager import upgrade_db
+from openquake.server.db import actions
+from openquake.server.dbapi import Db
+from openquake.server.settings import DATABASE
 from openquake.server import executor
 from openquake.engine import logs
+
+
+def dbcmd(action, *args):
+    """
+    Direct dispatcher to the database, used in the tests
+
+    :param action: database action to perform
+    :param args: arguments
+    """
+    # bypass the DbServer and run the action directly
+    # open a connection per query, this is fast anyway
+    db = Db(sqlite3.connect, DATABASE['NAME'], isolation_level=None)
+    res = getattr(actions, action)(db, *args)
+    db.conn.close()
+    return res
 
 
 def parse_args(argv):
@@ -44,12 +61,9 @@ if __name__ == "__main__":
         "DJANGO_SETTINGS_MODULE", "openquake.server.settings")
     argv, tmpfile = parse_args(sys.argv)
     if tmpfile:  # this is used in the functional tests
-        from openquake.server.settings import DATABASE
         DATABASE['NAME'] = tmpfile
-        logs.dbcmd.DBSERVER = False
-        conn = sqlite3.connect(tmpfile, isolation_level=None)
-        upgrade_db(conn)
-        conn.close()
+        logs.dbcmd = dbcmd
+        dbcmd('upgrade_db')
     else:
         # check the database version
         logs.dbcmd('check_outdated')
