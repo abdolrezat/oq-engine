@@ -837,7 +837,7 @@ class SourceManager(object):
         Yield (sources, sitecol, rlzs_assoc, monitor) by
         looping on the tiles and on the source blocks.
         """
-        self.fast_args = []
+        self.light_args = []
         monitor = self.monitor.new()
         for i, sitecol in enumerate(tiles, 1):
             if len(tiles) > 1:
@@ -858,7 +858,7 @@ class SourceManager(object):
                         operator.attrgetter('src_group_id')):
                     args = block, sitecol, self.rlzs_assoc, monitor
                     if block.weight < MINWEIGHT:
-                        self.fast_args.append(args)
+                        self.light_args.append(args)
                     else:
                         yield args
                     nblocks += 1

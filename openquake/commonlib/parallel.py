@@ -245,7 +245,6 @@ class TaskManager(object):
 
         :returns: a TaskManager object with a .result method.
         """
-        weights = []
         self = cls(task, name)
         for i, a in enumerate(task_args, 1):
             if i == 1:  # first time
@@ -253,8 +252,6 @@ class TaskManager(object):
             if isinstance(a[-1], Monitor):  # add incremental task number
                 a[-1].task_no = i
             self.submit(*a)
-            weights.append(a[0].weight)
-        self.task_weights = weights
         return self
 
     @classmethod
@@ -311,7 +308,7 @@ class TaskManager(object):
         self.received = []
         self.no_distribute = no_distribute()
         self.argnames = inspect.getargspec(self.task_func).args
-        self.fast_args = []
+        self.light_args = []
 
     def submit(self, *args):
         """
@@ -399,10 +396,10 @@ class TaskManager(object):
         if acc is None:
             acc = AccumDict()
         # for tasks so small that it is more efficient to execute them in core
-        for args in self.fast_args:
+        for args in self.light_args:
             acc = agg(acc, self.task_func(*args))
-        if self.fast_args:
-            logging.info('Processed  %d tasks in core', len(self.fast_args))
+        if self.light_args:
+            logging.info('Processed  %d tasks in core', len(self.light_args))
         num_tasks = len(self.results)
         if num_tasks == 0:
             logging.warn('No tasks were submitted')
