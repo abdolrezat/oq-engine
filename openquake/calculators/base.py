@@ -561,7 +561,7 @@ class HazardCalculator(BaseCalculator):
             oq.filter_sources, num_tiles=self.num_tiles)
         tm = starmap(self.core_task.__func__, manager.gen_args(tiles))
         tm.light_args = manager.light_args
-        self.datastore['task_weights'] = manager.task_weights
+        self.datastore['task_weights'] = numpy.array(manager.task_weights)
         manager.store_source_info(self.datastore)
         return tm
 
