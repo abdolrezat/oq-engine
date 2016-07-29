@@ -245,6 +245,7 @@ class TaskManager(object):
 
         :returns: a TaskManager object with a .result method.
         """
+        weights = []
         self = cls(task, name)
         for i, a in enumerate(task_args, 1):
             if i == 1:  # first time
@@ -252,6 +253,8 @@ class TaskManager(object):
             if isinstance(a[-1], Monitor):  # add incremental task number
                 a[-1].task_no = i
             self.submit(*a)
+            weights.append(a[0].weight)
+        self.task_weights = weights
         return self
 
     @classmethod

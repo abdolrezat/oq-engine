@@ -762,8 +762,7 @@ class SourceManager(object):
         if num_tiles > 1:
             self.maxweight = MAXWEIGHT  # use the default
         else:
-            self.maxweight = math.ceil(
-                csm.weight / self.concurrent_tasks) / 2.
+            self.maxweight = math.ceil(csm.weight / self.concurrent_tasks) / 2.
         logging.info('Instantiated SourceManager with maxweight=%.1f',
                      self.maxweight)
 
@@ -837,6 +836,7 @@ class SourceManager(object):
         Yield (sources, sitecol, rlzs_assoc, monitor) by
         looping on the tiles and on the source blocks.
         """
+        monitor = self.monitor.new()
         for i, sitecol in enumerate(tiles, 1):
             if len(tiles) > 1:
                 logging.info('Processing tile %d', i)
@@ -854,7 +854,7 @@ class SourceManager(object):
                         sources, self.maxweight,
                         operator.attrgetter('weight'),
                         operator.attrgetter('src_group_id')):
-                    yield block, sitecol, self.rlzs_assoc, self.monitor.new()
+                    yield block, sitecol, self.rlzs_assoc, monitor
                     nblocks += 1
                 logging.info('Sent %d sources in %d block(s)',
                              len(sources), nblocks)
