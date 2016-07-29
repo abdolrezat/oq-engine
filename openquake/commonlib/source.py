@@ -839,6 +839,7 @@ class SourceManager(object):
         looping on the tiles and on the source blocks.
         """
         self.light_args = []
+        self.task_weights = []
         monitor = self.monitor.new()
         for i, sitecol in enumerate(tiles, 1):
             if len(tiles) > 1:
@@ -858,6 +859,7 @@ class SourceManager(object):
                         operator.attrgetter('weight'),
                         operator.attrgetter('src_group_id')):
                     args = block, sitecol, self.rlzs_assoc, monitor
+                    self.task_weights.append(block.weight)
                     if block.weight < MINWEIGHT:
                         self.light_args.append(args)
                     else:
