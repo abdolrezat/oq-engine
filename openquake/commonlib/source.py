@@ -39,6 +39,7 @@ from openquake.commonlib import nrml, node
 
 
 MAX_INT = 2 ** 31 - 1
+MINWEIGHT = 2    # tuned euristically by M. Simionato
 MAXWEIGHT = 200  # tuned euristically by M. Simionato
 U16 = numpy.uint16
 U32 = numpy.uint32
@@ -836,6 +837,7 @@ class SourceManager(object):
         Yield (sources, sitecol, rlzs_assoc, monitor) by
         looping on the tiles and on the source blocks.
         """
+        self.fast_args = []
         monitor = self.monitor.new()
         for i, sitecol in enumerate(tiles, 1):
             if len(tiles) > 1:
@@ -854,7 +856,11 @@ class SourceManager(object):
                         sources, self.maxweight,
                         operator.attrgetter('weight'),
                         operator.attrgetter('src_group_id')):
-                    yield block, sitecol, self.rlzs_assoc, monitor
+                    args = block, sitecol, self.rlzs_assoc, monitor
+                    if block.weight < MINWEIGHT:
+                        self.fast_args.append(args)
+                    else:
+                        yield args
                     nblocks += 1
                 logging.info('Sent %d sources in %d block(s)',
                              len(sources), nblocks)

@@ -311,6 +311,7 @@ class TaskManager(object):
         self.received = []
         self.no_distribute = no_distribute()
         self.argnames = inspect.getargspec(self.task_func).args
+        self.fast_args = []
 
     def submit(self, *args):
         """
@@ -397,6 +398,11 @@ class TaskManager(object):
         """
         if acc is None:
             acc = AccumDict()
+        # for tasks so small that it is more efficient to execute them in core
+        for args in self.fast_args:
+            acc = agg(acc, self.task_func(*args))
+        if self.fast_args:
+            logging.info('Processed  %d tasks in core', len(self.fast_args))
         num_tasks = len(self.results)
         if num_tasks == 0:
             logging.warn('No tasks were submitted')

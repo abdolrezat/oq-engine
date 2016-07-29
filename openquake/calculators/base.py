@@ -560,6 +560,7 @@ class HazardCalculator(BaseCalculator):
             self.monitor.new(oqparam=oq), self.random_seed,
             oq.filter_sources, num_tiles=self.num_tiles)
         tm = starmap(self.core_task.__func__, manager.gen_args(tiles))
+        tm.fast_args = manager.fast_args
         self.datastore['task_weights'] = numpy.array(tm.task_weights, F32)
         manager.store_source_info(self.datastore)
         return tm
